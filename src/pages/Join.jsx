@@ -2,16 +2,19 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Field from '../components/Field.jsx'
 import { TRADES, COUNTIES } from '../lib/data.js'
-import { store, cleanPhone, ageFrom } from '../lib/store.js'
+import { cleanPhone, ageFrom } from '../lib/checks.js'
+import { api, ApiError } from '../lib/api.js'
 
 export default function Join() {
   const [f, setF] = useState({ name: '', phone: '', nationalId: '', dob: '', county: 'Nairobi', trade: 'labour', kind: 'general', experience: '', consent: false, website: '' })
   const [err, setErr] = useState({})
   const [done, setDone] = useState(null)
+  const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
+    if (busy) return
     if (f.website) return // honeypot: real people never fill this
     const x = {}
     if (f.name.trim().split(/\s+/).length < 2) x.name = 'Please enter your full name (first and last).'
@@ -21,11 +24,17 @@ export default function Join() {
     if (age === null) x.dob = 'Enter your date of birth.'
     else if (age < 18 || age > 35) x.dob = 'We take workers aged 18 to 35.'
     if (!f.consent) x.consent = 'Please agree so we can check your details.'
-    if (store.list('ss_workers').some((w) => w.nationalId === f.nationalId.trim())) x.nationalId = 'This ID number has already applied.'
     setErr(x)
     if (Object.keys(x).length) { document.querySelector('[role=alert]')?.scrollIntoView({ block: 'center' }); return }
-    const { website, consent, ...rest } = f
-    setDone(store.add('ss_workers', { ...rest, phone: cleanPhone(f.phone), nationalId: f.nationalId.trim(), age, status: 'Pending' }))
+    setBusy(true)
+    try {
+      // The server checks everything again, including whether this ID has already applied.
+      setDone(await api.post('/workers', { ...f, phone: cleanPhone(f.phone), nationalId: f.nationalId.trim() }))
+    } catch (ex) {
+      if (ex instanceof ApiError && Object.keys(ex.fields).length) setErr(ex.fields)
+      else setErr({ form: ex.message })
+      document.querySelector('[role=alert]')?.scrollIntoView({ block: 'center' })
+    } finally { setBusy(false) }
   }
 
   if (done) {
@@ -34,7 +43,7 @@ export default function Join() {
         <div className="okmark" aria-hidden="true">✓</div>
         <h1>Application received.</h1>
         <p className="sub">Thank you, {done.name.split(' ')[0]}. We will check your details and text you on {done.phone}.</p>
-        <p className="small">Reference {done.id}</p>
+        <p className="small">Reference W-{done.id}</p>
         <p><Link className="btn" to="/">Back to home</Link></p>
       </section>
     )
@@ -64,7 +73,8 @@ export default function Join() {
           <label className="check"><input type="checkbox" checked={f.consent} onChange={set('consent')} /><span>I agree that Skill Sync may check my ID and contact me about work.</span></label>
           {err.consent && <p className="err" role="alert">{err.consent}</p>}
         </div>
-        <button className="btn" type="submit">Apply</button>
+        {err.form && <p className="err" role="alert">{err.form}</p>}
+        <button className="btn" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Apply'}</button>
       </form>
     </section>
   )

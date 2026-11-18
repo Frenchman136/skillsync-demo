@@ -2,21 +2,27 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Field from '../components/Field.jsx'
 import { TRADES } from '../lib/data.js'
-import { store, cleanPhone } from '../lib/store.js'
+import { cleanPhone } from '../lib/checks.js'
+import { api, ApiError } from '../lib/api.js'
+import { useAuth } from '../lib/auth.jsx'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function Request() {
   const { state } = useLocation()
+  const { user } = useAuth()
+  const mine = user?.role === 'contractor' ? user : null // a signed-in contractor's details are filled in for them
   const [qty, setQty] = useState(() => ({ ...(state?.picked || {}) }))
-  const [f, setF] = useState({ name: '', company: '', phone: '', email: '', site: '', start: '', length: '3 months or more', notes: '' })
+  const [f, setF] = useState({ name: mine?.name || '', company: mine?.company || '', phone: '', email: mine?.email || '', site: '', start: '', length: '3 months or more', notes: '' })
   const [err, setErr] = useState({})
   const [done, setDone] = useState(null)
+  const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const step = (id, d) => setQty((q) => { const v = Math.max(0, Math.min(99, (q[id] || 0) + d)); const n = { ...q }; if (v) n[id] = v; else delete n[id]; return n })
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
+    if (busy) return
     const x = {}
     if (!Object.keys(qty).length) x.trades = 'Choose at least one trade and how many workers.'
     if (!f.name.trim()) x.name = 'Please enter your name.'
@@ -27,8 +33,15 @@ export default function Request() {
     else if (f.start < today()) x.start = 'The start date cannot be in the past.'
     setErr(x)
     if (Object.keys(x).length) { document.querySelector('[role=alert]')?.scrollIntoView({ block: 'center' }); return }
-    const row = store.add('ss_requests', { ...f, phone: cleanPhone(f.phone), trades: qty, status: 'New' })
-    setDone(row)
+    setBusy(true)
+    try {
+      setDone(await api.post('/requests', { ...f, phone: cleanPhone(f.phone), trades: qty }))
+    } catch (ex) {
+      // The server checks everything again. Show its messages on the same fields.
+      if (ex instanceof ApiError && ex.status === 400) setErr(ex.fields)
+      else setErr({ form: ex.message })
+      document.querySelector('[role=alert]')?.scrollIntoView({ block: 'center' })
+    } finally { setBusy(false) }
   }
 
   if (done) {
@@ -37,8 +50,8 @@ export default function Request() {
         <div className="okmark" aria-hidden="true">✓</div>
         <h1>Request sent.</h1>
         <p className="sub">Thank you, {done.name.split(' ')[0]}. We will check the work and reply on {done.phone} within one working day.</p>
-        <p className="small">Reference {done.id}</p>
-        <p><Link className="btn" to="/">Back to home</Link></p>
+        <p className="small">Reference R-{done.id}</p>
+        <p>{mine ? <Link className="btn" to="/portal">See my requests</Link> : <Link className="btn" to="/">Back to home</Link>}</p>
       </section>
     )
   }
@@ -84,7 +97,8 @@ export default function Request() {
             <Field id="email" label="Email (optional)" error={err.email}><input id="email" type="email" autoComplete="email" value={f.email} onChange={set('email')} /></Field>
           </div>
         </fieldset>
-        <button className="btn" type="submit">Send request</button>
+        {err.form && <p className="err" role="alert">{err.form}</p>}
+        <button className="btn" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send request'}</button>
       </form>
     </section>
   )
