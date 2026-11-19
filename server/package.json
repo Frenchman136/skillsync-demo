@@ -7,8 +7,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "start": "node init && node src/index.js",
+    "dev": "node init && node --watch src/index.js",
     "seed": "node src/seed.js",
     "test": "node --test --test-concurrency=1 test/*.test.js"
   },

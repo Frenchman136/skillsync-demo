@@ -4,7 +4,11 @@ export default function Field({ id, label, error, hint, children }) {
       <label htmlFor={id}>{label}</label>
       {children}
       {hint && !error && <span className="hint">{hint}</span>}
-      {error && <span className="err" role="alert">{error}</span>}
+      {error && (
+        <span className="err" role="alert">
+          {error}
+        </span>
+      )}
     </div>
-  )
+  );
 }
