@@ -128,10 +128,10 @@ To run the tests, create a throwaway database once: `docker compose exec db psql
 5. Load the demo data. The free plan has no shell, so run the seed from your laptop against the database's **External Database URL** (Render: database page, Connections):
    ```
    cd server
-   $env:DATABASE_URL = "<External Database URL>"
+   $env:DATABASE_URL = "postgresql://skillsync:isr8khKrkkZ3mfdjeL5rjDJvnKqKgvNM@dpg-dbuukjui0phs73ests50-a.oregon-postgres.render.com/skillsync_2ivf"
    $env:DATABASE_SSL = "true"
-   $env:JWT_SECRET = "anything-16-chars-or-more"
-   $env:ADMIN_EMAIL = "<same as Render>"; $env:ADMIN_PASSWORD = "<same as Render>"
+   $env:JWT_SECRET = "fcfgjvlhjnlnjkhiuhbbjlkhbhlvgjvhbjknm"
+   $env:ADMIN_EMAIL = "feselchirumban@gmail.com"; $env:ADMIN_PASSWORD = "Fesel12345"
    npm run seed
    ```
    (Setting the variables in the shell wins over `server/.env`.)
